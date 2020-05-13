@@ -11,8 +11,7 @@
 import tensorflow as tf
 import tensorflow.contrib as tf_contrib
 from common import config
-import cv2
-import numpy as np
+from regularizer import lp_regularizer
 
 
 class Model():
@@ -21,7 +20,7 @@ class Model():
         self.weight_init = tf_contrib.layers.variance_scaling_initializer(factor=1.0,
                                 mode='FAN_IN', uniform=False)
         self.bias_init = tf.zeros_initializer()
-        self.reg = tf_contrib.layers.l2_regularizer(config.weight_decay)
+        self.reg = lp_regularizer(config.weight_decay)
 
     def _conv_layer(self, name, inp, kernel_shape, stride, padding='SAME',is_training=False):
         with tf.variable_scope(name) as scope:
@@ -36,27 +35,14 @@ class Model():
             x = tf.nn.relu(x)
         return x
 
-    def gaussian_kernel(self, ksize, sigma=-1):
-        kx = cv2.getGaussianKernel(ksize, sigma)
-        ky = cv2.getGaussianKernel(ksize, sigma)
-        return np.multiply(kx, np.transpose(ky))
-
-    def _pool_layer(self, name, inp, ksize, stride, p=2, padding='SAME', mode='MAX'):
-        assert mode in ['MAX', 'AVG', 'Lp'], 'the mode of pool must be MAX or AVG or Lp'
+    def _pool_layer(self, name, inp, ksize, stride, padding='SAME', mode='MAX'):
+        assert mode in ['MAX', 'AVG'], 'the mode of pool must be MAX or AVG'
         if mode == 'MAX':
             x = tf.nn.max_pool(inp, ksize=[1, ksize, ksize, 1], strides=[1, stride, stride, 1],
                                padding=padding, name=name, data_format='NHWC')
         elif mode == 'AVG':
             x = tf.nn.avg_pool(inp, ksize=[1, ksize, ksize, 1], strides=[1, stride, stride, 1],
                                padding=padding, name=name, data_format='NHWC')
-        elif mode == 'Lp':
-            x = tf.cast(inp, tf.float64)
-            x = tf.pow(x, p)
-            gauss_filter = tf.constant(self.gaussian_kernel(ksize), shape=[1, ksize, ksize, inp.shape[3]], dtype=tf.float64)
-            x = tf.nn.conv2d(x, gauss_filter, strides=[1, stride, stride, 1],
-                             padding=padding, data_format='NHWC')
-            x = tf.pow(x, 1/p)
-            x = tf.cast(inp, tf.float32)
         return x
 
     def _fc_layer(self, name, inp, units, dropout=0.5):
@@ -89,28 +75,28 @@ class Model():
         x = self._conv_layer(name='conv1', inp=data,
                              kernel_shape=[3, 3, config.nr_channel, 16], stride=1,
                              is_training=is_training) # Nx32x32x32
-        x = self._pool_layer(name='pool1', inp=x, ksize=2, stride=2, mode='Lp') # Nx16x16x16
+        x = self._pool_layer(name='pool1', inp=x, ksize=2, stride=2, mode='MAX') # Nx16x16x16
 
         # conv2
         x = self._conv_layer(name='conv21', inp=x, kernel_shape=[3, 3, 16, 32],
                              stride=1, is_training=is_training)
         x = self._conv_layer(name='conv22', inp=x, kernel_shape=[3, 3, 32, 32],
                              stride=1, is_training=is_training)
-        x = self._pool_layer(name='pool2', inp=x, ksize=2, stride=2, mode='Lp') # Nx8x8x32
+        x = self._pool_layer(name='pool2', inp=x, ksize=2, stride=2, mode='MAX') # Nx8x8x32
 
         # conv3
         x = self._conv_layer(name='conv31', inp=x, kernel_shape=[3, 3, 32, 64],
                              stride=1, is_training=is_training)
         x = self._conv_layer(name='conv32', inp=x, kernel_shape=[3, 3, 64, 64],
                              stride=1, is_training=is_training)
-        x = self._pool_layer(name='pool3', inp=x, ksize=2, stride=2, mode='Lp') # Nx4x4x64
+        x = self._pool_layer(name='pool3', inp=x, ksize=2, stride=2, mode='MAX') # Nx4x4x64
 
         # conv4
         x = self._conv_layer(name='conv41', inp=x, kernel_shape=[3, 3, 64, 128],
                              stride=1, is_training=is_training)
         x = self._conv_layer(name='conv42', inp=x, kernel_shape=[3, 3, 128, 128],
                              stride=1, is_training=is_training)
-        x = self._pool_layer(name='pool4', inp=x, ksize=4, stride=4, mode='Lp') # Nx1x1x128
+        x = self._pool_layer(name='pool4', inp=x, ksize=4, stride=4, mode='AVG') # Nx1x1x128
 
         # fc1
         logits = self._fc_layer(name='fc1', inp=x, units=config.nr_class, dropout=0)
