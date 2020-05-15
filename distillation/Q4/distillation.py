@@ -39,8 +39,7 @@ def train(args, teacher_network):
                             tf.cast(tf.argmax(label_onehot, 1), dtype=tf.int32))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
         loss_reg = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        loss = tf.losses.softmax_cross_entropy(logits, label_onehot) + 
-                args.tempreture * args.tempreture * tf.losses.softmax_cross_entropy(logits/args.temperature, target_label_onehot)
+        loss = tf.losses.softmax_cross_entropy(label_onehot, logits) + args.tempreture ** 2 * tf.losses.softmax_cross_entropy(label_onehot, logits/args.temperature) + loss_reg
 
         global_steps = tf.Variable(0, trainable=False)
         boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*40]
