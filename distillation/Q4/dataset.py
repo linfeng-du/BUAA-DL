@@ -10,7 +10,7 @@ from scipy import io as scio
 from common import config
 
 class Dataset():
-    dataset_path = '../../dataset/SVHN'
+    dataset_path = '../dataset/SVHN'
     #dataset_path = '/root/dataset/SVHN'
 
 

@@ -15,7 +15,7 @@ from distillation import train
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--continue', dest='continue_path', required=False)
-    parser.add_argument('-t', '--temperature', type=float, default=15.0)
+    parser.add_argument('-t', '--temperature', type=float, default=2.0)
     args = parser.parse_args()
     teacher_network = BigModel(args)
     teacher_network.start_session()
